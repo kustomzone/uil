@@ -158,7 +158,21 @@ UIL.Proto.prototype = {
         }
         if(this.callback)this.callback = null;
         if(this.value)this.value = null;
-    }
+    },
+
+    numValue:function(n){
+        return Math.min( this.max, Math.max( this.min, n ) ).toFixed( this.precision );
+    },
+    setRange:function(min,max){
+        this.min=min;
+        this.max=max;
+        return this;
+    },
+    setPrecision:function(precision){
+        this.precision=precision;
+        return this;
+    },
+
 
 }
 UIL.Title = function(target, type, id, prefix ){
@@ -189,34 +203,45 @@ UIL.Title = function(target, type, id, prefix ){
 
 UIL.Title.prototype = Object.create( UIL.Proto.prototype );
 UIL.Title.prototype.constructor = UIL.Title;
-UIL.Vector = function(target, name, callback, value ){
+UIL.Vector = function(target, name, callback, value, min, max, precision, step ){
 
     UIL.Proto.call( this, target, name, callback );
 
+    this.min = Number(min) || -Infinity;
+    this.max = max || Infinity;
+    this.precision = precision || 0;
+    this.step = step || 1;
+    this.prev = null;
+
     this.value = value || [0,0];
+    this.length = this.value.length;
+    this.w = (175/(this.length))-5;
 
-
-    this.c[3] = UIL.element('UIL number', 'input', 'left:100px;');
-    this.c[4] = UIL.element('UIL number', 'input', 'left:170px;');
+    for(var i=0; i<this.length; i++){
+        this.c[3+i] = UIL.element('UIL number', 'input', 'width:'+this.w+'px; left:'+(100+(this.w*i)+(5*i))+'px;');
+        this.c[3+i].value = this.value[i];
+        this.c[3+i].onkeydown = this.f[0];
+    }
+    this.c[3+this.length] = UIL.element('UIL big', 'div', 'display:none;');
 
     this.f[0] = function(e){
-        if ( e.keyCode === 13 ){ 
-            if(!isNaN(this.c[3].value) && !isNaN(this.c[4].value)){
-                this.value = [this.c[3].value, this.c[4].value];
-                this.callback( this.value );
-            } else {
-                this.c[3].value = this.value[0];
-                this.c[4].value = this.value[1];
+        if (!e) e = window.event;
+        e.stopPropagation();
+        if ( e.keyCode === 13 ){
+            for(var i=0; i<this.length; i++){
+                this.f[1](i);
             }
+            this.callback( this.value );
             e.target.blur();
         }
         e.stopPropagation();
     }.bind(this);
 
-    this.c[3].value = this.value[0];
-    this.c[4].value = this.value[1];
-    this.c[3].onkeydown = this.f[0];
-    this.c[4].onkeydown = this.f[0];
+    // test value
+    this.f[1] = function(n){
+         if(!isNaN(this.c[3+n].value)) this.value[n] = this.c[3+n].value;
+         else this.c[3+n].value = this.value[n];
+    };
 
     this.init();
 }
@@ -252,12 +277,13 @@ UIL.Number = function(target, name, callback, value, min, max, precision, step, 
 
     UIL.Proto.call( this, target, name, callback );
 
-    this.min = min || 0;//-Infinity;
+    this.min = parseFloat(min) || -Infinity;
     this.max = max || Infinity;
     this.precision = precision || 0;
     this.step = step || 1;
     this.prev = null;
-    this.shiftKey = false;
+
+    ///if(min !== undefined) this.min = min;
 
     this.value = value || 0;
     this.toRad = 1;
@@ -267,14 +293,14 @@ UIL.Number = function(target, name, callback, value, min, max, precision, step, 
     };
 
     this.c[3] = UIL.element('UIL number', 'input', 'left:100px;');
-    this.c[4] = UIL.element('UIL boxbb', 'div', 'left:165px;');
-    this.c[5] = UIL.element('UIL big', 'div', 'display:none;');
+    this.c[4] = UIL.element('UIL big', 'div', 'display:none;');
     
     this.f[0] = function(e){
         if (!e) e = window.event;
+        e.stopPropagation();
         if ( e.keyCode === 13 ){ 
             if(!isNaN(e.target.value)){
-                this.value =  Math.min( this.max, Math.max( this.min, e.target.value ) ).toFixed( this.precision ) ;
+                this.value =  this.numValue(e.target.value);
                 this.callback( this.value * this.toRad );
             } else {
                 e.target.value = this.value;
@@ -288,17 +314,18 @@ UIL.Number = function(target, name, callback, value, min, max, precision, step, 
         if (!e) e = window.event;
         e.preventDefault();
         this.prev = { x:e.clientX, y:e.clientY, v:parseFloat( this.value ), d:0};
-        this.c[5].style.display = 'block';
-        this.c[5].onmousemove = this.f[2];
-        this.c[5].onmouseup = this.f[3];
-        this.c[5].onmouseout = this.f[3];
+        this.c[4].style.display = 'block';
+        this.c[4].onmousemove = this.f[2];
+        this.c[4].onmouseup = this.f[3];
+        this.c[4].onmouseout = this.f[3];
+        
     }.bind(this);
 
     this.f[2] = function(e){
         if (!e) e = window.event;
         this.prev.d += ( e.clientX - this.prev.x ) - ( e.clientY - this.prev.y );
-        var number = this.prev.v + ( this.prev.d * this.step);
-        this.value = Math.min( this.max, Math.max( this.min, number ) ).toFixed( this.precision );
+        var n = this.prev.v + ( this.prev.d * this.step);
+        this.value = this.numValue(n);
         this.c[3].value = this.value;
         this.callback( this.value * this.toRad );
         this.prev.x = e.clientX;
@@ -307,18 +334,20 @@ UIL.Number = function(target, name, callback, value, min, max, precision, step, 
 
     this.f[3] = function(e){
         if (!e) e = window.event;
-        e.preventDefault();
-        this.c[5].style.display = 'none'
-        this.c[5].onmousemove = null;
-        this.c[5].onmouseup = null;
-        this.c[5].onmouseout = null;
+        this.c[4].style.display = 'none'
+        this.c[4].onmousemove = null;
+        this.c[4].onmouseup = null;
+        this.c[4].onmouseout = null;
+        if ( Math.abs( this.prev.d ) < 2 ) {
+            this.c[3].focus();
+            this.c[3].select();
+        }
     }.bind(this);
 
     if(isAngle) this.c[2].innerHTML = name+ '°';
     this.c[3].value = this.value;
     this.c[3].onkeydown = this.f[0];
-    this.c[4].onmousedown = this.f[1];
-    this.c[4].innerHTML ='< >';
+    this.c[3].onmousedown = this.f[1];
 
     this.init();
 }
@@ -705,8 +734,9 @@ UIL.List = function(target, name, callback, value, list ){
 
     UIL.Proto.call( this, target, name, callback );
 
-    this.c[3] = UIL.element('UIL Listtxt', 'div', 'background:'+UIL.bgcolor('G')+';');
-    this.c[4] = UIL.element('UIL list');
+    this.c[3] = UIL.element('UIL list');
+    this.c[4] = UIL.element('UIL Listtxt', 'div', 'background:'+UIL.bgcolor('G')+';');
+    
 
     if(!isNaN(value)) this.value = list[value];
     else this.value = value;
@@ -725,8 +755,8 @@ UIL.List = function(target, name, callback, value, list ){
     this.listsel = UIL.element('UIL list-sel');
     this.listIn.name = 'list';
     this.listsel.name = 'list';
-    this.c[4].appendChild(this.listIn)
-    this.c[4].appendChild(this.listsel)
+    this.c[3].appendChild(this.listIn)
+    this.c[3].appendChild(this.listsel)
 
     // populate list
     var item, n, l = 170;
@@ -739,8 +769,8 @@ UIL.List = function(target, name, callback, value, list ){
     }
 
     //this.c[2].innerHTML = name;
-    this.c[3].innerHTML = this.value;
-    this.c[4].name = 'list';
+    this.c[4].innerHTML = this.value;
+    this.c[3].name = 'list';
 
     // click top
     this.f[0] = function(e){
@@ -752,14 +782,14 @@ UIL.List = function(target, name, callback, value, list ){
     this.f[1] = function(e){
         this.show = false;
         this.c[1].style.height = '20px';
-        this.c[4].style.display = 'none';
+        this.c[3].style.display = 'none';
     }.bind(this);
 
     // open
     this.f[2] = function(e){
         this.show = true;
         this.c[1].style.height = '110px';
-        this.c[4].style.display = 'block';
+        this.c[3].style.display = 'block';
     }.bind(this);
 
     // mousedown
@@ -767,7 +797,7 @@ UIL.List = function(target, name, callback, value, list ){
         var name = e.target.name;
         if(name!=='list' && name!==undefined ){
             this.value = e.target.name;
-            this.c[3].innerHTML = this.value;
+            this.c[4].innerHTML = this.value;
             this.callback(value);
             this.f[1]();
         }else if (name=='list'){
@@ -782,7 +812,7 @@ UIL.List = function(target, name, callback, value, list ){
     // mousemove
     this.f[4] = function(e){
        if(this.down){
-            var rect =this.c[4].getBoundingClientRect();
+            var rect =this.c[3].getBoundingClientRect();
             var y = e.clientY-rect.top;
             if(y<30) y = 30;
             if(y>90) y = 90;
@@ -807,11 +837,11 @@ UIL.List = function(target, name, callback, value, list ){
     }.bind(this);
 
 
-    this.c[3].onclick = this.f[0];
-    this.c[4].onmousedown = this.f[3];
-    this.c[4].onmousemove = this.f[4];
-    this.c[4].onmouseout = this.f[5];
-    this.c[4].onmouseup = this.f[6];
+    this.c[4].onclick = this.f[0];
+    this.c[3].onmousedown = this.f[3];
+    this.c[3].onmousemove = this.f[4];
+    this.c[3].onmouseout = this.f[5];
+    this.c[3].onmouseup = this.f[6];
 
     this.init();
 }
@@ -823,8 +853,8 @@ UIL.List.prototype.clear = function(){
     while (this.listIn.firstChild) {
        this.listIn.removeChild(this.listIn.firstChild);
     }
-    while (this.c[4].firstChild) {
-       this.c[4].removeChild(this.c[4].firstChild);
+    while (this.c[3].firstChild) {
+       this.c[3].removeChild(this.c[3].firstChild);
     }
     UIL.Proto.prototype.clear.call( this );
 }

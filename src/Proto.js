@@ -47,6 +47,20 @@ UIL.Proto.prototype = {
         }
         if(this.callback)this.callback = null;
         if(this.value)this.value = null;
-    }
+    },
+
+    numValue:function(n){
+        return Math.min( this.max, Math.max( this.min, n ) ).toFixed( this.precision );
+    },
+    setRange:function(min,max){
+        this.min=min;
+        this.max=max;
+        return this;
+    },
+    setPrecision:function(precision){
+        this.precision=precision;
+        return this;
+    },
+
 
 }
